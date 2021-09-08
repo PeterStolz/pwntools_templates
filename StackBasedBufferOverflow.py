@@ -1,29 +1,37 @@
-#!/usr/bin/python3
+#!/usr/env/python3
 from pwn import *
-
-
-## Change filename and local
-filename = './vuln'
-remote_url = 'docker.hackthebox.eu'
-remote_port = 31195
-local = False
-
-
-#this line enabels pwntools to overwrite core files
-if os.path.exists('core'): os.unlink('core')
 
 ##Setup context
 #enable coredumps
 os.system('ulimit -c unlimited')#TODO:find command the enables coredumps on all systems
-context.log_level = 'debug'
 context.terminal = ['tmux', 'new-window']# Sets the terminal to be opened if gdb is used
+
+## Change filename and local
+filename = './'
 elf = context.binary = ELF(filename)
+libc = elf.libc
+remote_url = 'docker.hackthebox.eu'
+remote_port = 31195
+
+local = "-r" not in sys.argv
+debug = "-d" in sys.argv
+context.log_level = 'debug' if '-v' in sys.argv else 'info'
+
+#this line enabels pwntools to overwrite core files
+if os.path.exists('core'): os.unlink('core')
+
 #This creates a packer and unpacker for the correponding architecture e.g p64() for x64 ans p32() for i386
 p = make_packer()
 u = make_unpacker()
 
 def getP(local=local):
-    return process(filename) if local else remote(remote_url, remote_port)
+    if local: 
+        p = process(filename) 
+        if debug:
+            gdb.attach(p, 'c\n')
+        return p
+    else:
+        return remote(remote_url, remote_port)
 
 ##Find offset for bufoverflow
 def findOffset(process):
@@ -42,3 +50,6 @@ def findOffset(process):
     else:
         error('The architecture %s is currently not supported', context.arch)
     return offset
+
+offset = findOffset(getP(local=True))
+success('Found offset: %d', offset)
